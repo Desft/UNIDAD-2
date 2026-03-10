@@ -75,6 +75,13 @@ def algoritmo_apriori(soporte_min):
     total = len(transacciones)
     minimo = total * soporte_min
 
+    try:
+        frec_min = int(entrada_frec_min.get()) if entrada_frec_min.get().strip() else 0
+        frec_max = int(entrada_frec_max.get()) if entrada_frec_max.get().strip() else 99999
+    except ValueError:
+        mostrar_estado("Error: los valores de frecuencia deben ser numeros enteros", "red")
+        return
+
     conteo = {}
     for productos in transacciones.values():
         productos = sorted(set(productos))
@@ -85,7 +92,7 @@ def algoritmo_apriori(soporte_min):
 
     resultados = []
     for (a, b), veces in conteo.items():
-        if veces >= minimo and filtro_tipo_activo(a, b):
+        if veces >= minimo and frec_min <= veces <= frec_max and filtro_tipo_activo(a, b):
             porcentaje = f"{round((veces / total) * 100, 2)}%"
             resultados.append((nombre_producto(a), nombre_producto(b), veces, porcentaje))
 
@@ -102,13 +109,20 @@ def algoritmo_vertical(soporte_min):
     total = len(df["Outlet_Identifier"].unique())
     minimo = total * soporte_min
 
+    try:
+        frec_min = int(entrada_frec_min.get()) if entrada_frec_min.get().strip() else 0
+        frec_max = int(entrada_frec_max.get()) if entrada_frec_max.get().strip() else 99999
+    except ValueError:
+        mostrar_estado("Error: los valores de frecuencia deben ser numeros enteros", "red")
+        return
+
     items = list(tidlists.keys())
     resultados = []
     for i in range(len(items)):
         for j in range(i + 1, len(items)):
             a, b = items[i], items[j]
             comunes = len(tidlists[a] & tidlists[b])
-            if comunes >= minimo and filtro_tipo_activo(a, b):
+            if comunes >= minimo and frec_min <= comunes <= frec_max and filtro_tipo_activo(a, b):
                 porcentaje = f"{round((comunes / total) * 100, 2)}%"
                 resultados.append((nombre_producto(a), nombre_producto(b), comunes, porcentaje))
 
@@ -205,6 +219,7 @@ def abrir_graficas():
         df.groupby("Item_Identifier")["Item_Outlet_Sales"]
         .sum().sort_values(ascending=False).head(10)
     )
+    ventas_por_producto.index = [cache_nombre.get(c, c) for c in ventas_por_producto.index]
 
     ventas_por_tipo = (
         df.groupby("Item_Type")["Item_Outlet_Sales"]
@@ -223,7 +238,7 @@ def abrir_graficas():
                 conteo_pares[par] = conteo_pares.get(par, 0) + 1
 
     pares_top = sorted(conteo_pares, key=conteo_pares.get, reverse=True)[:10]
-    nombres_pares = [f"{p[0]} & {p[1]}" for p in pares_top]
+    nombres_pares = [f"{cache_nombre.get(p[0],p[0])}\n& {cache_nombre.get(p[1],p[1])}" for p in pares_top]
     valores_pares = [conteo_pares[p] for p in pares_top]
 
     positivos = negativos = independientes = 0
@@ -383,14 +398,27 @@ combo_tipo.grid(row=0, column=3, padx=5)
 frame_lift = tk.Frame(ventana, bg="#f5f5f5", pady=4)
 frame_lift.pack(fill=tk.X, padx=15)
 
-tk.Label(frame_lift, text="Filtro para Lift — mostrar pares con lift:", bg="#f5f5f5").pack(side=tk.LEFT, padx=5)
-combo_lift_op = ttk.Combobox(frame_lift, values=[">", "<", ">=", "<=", "="], width=5, state="readonly")
+tk.Label(frame_lift, text="Filtro Frecuencia (Apriori/Vertical) — entre:", bg="#f5f5f5").pack(side=tk.LEFT, padx=5)
+entrada_frec_min = tk.Entry(frame_lift, width=6)
+entrada_frec_min.insert(0, "")
+entrada_frec_min.pack(side=tk.LEFT, padx=3)
+tk.Label(frame_lift, text="y", bg="#f5f5f5").pack(side=tk.LEFT)
+entrada_frec_max = tk.Entry(frame_lift, width=6)
+entrada_frec_max.insert(0, "")
+entrada_frec_max.pack(side=tk.LEFT, padx=3)
+tk.Label(frame_lift, text="apariciones  (dejar vacio = sin limite)", fg="gray", bg="#f5f5f5").pack(side=tk.LEFT, padx=5)
+
+frame_lift2 = tk.Frame(ventana, bg="#f5f5f5", pady=4)
+frame_lift2.pack(fill=tk.X, padx=15)
+
+tk.Label(frame_lift2, text="Filtro para Lift — mostrar pares con lift:", bg="#f5f5f5").pack(side=tk.LEFT, padx=5)
+combo_lift_op = ttk.Combobox(frame_lift2, values=[">", "<", ">=", "<=", "="], width=5, state="readonly")
 combo_lift_op.current(2)
 combo_lift_op.pack(side=tk.LEFT, padx=3)
-entrada_lift_val = tk.Entry(frame_lift, width=8)
+entrada_lift_val = tk.Entry(frame_lift2, width=8)
 entrada_lift_val.insert(0, "1.0")
 entrada_lift_val.pack(side=tk.LEFT, padx=3)
-tk.Label(frame_lift, text="(solo aplica al boton Lift)", fg="gray", bg="#f5f5f5").pack(side=tk.LEFT, padx=8)
+tk.Label(frame_lift2, text="(solo aplica al boton Lift)", fg="gray", bg="#f5f5f5").pack(side=tk.LEFT, padx=8)
 
 frame_estado = tk.Frame(ventana, bg="#f5f5f5")
 frame_estado.pack(fill=tk.X, padx=15)
