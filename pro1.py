@@ -25,19 +25,36 @@ def cargar_datos():
     })
     df["Item_Identifier"] = df["Item_Identifier"].astype(str)
     df["Outlet_Identifier"] = df["Outlet_Identifier"].astype(str)
+
+    # Renombrar columnas a español para mejor visualizacion en graficas
+    df = df.rename(columns={
+        "Item_Identifier":           "Codigo_Producto",
+        "Item_Weight":               "Peso_Producto",
+        "Item_Fat_Content":          "Contenido_Grasa",
+        "Item_Visibility":           "Visibilidad_Producto",
+        "Item_Type":                 "Tipo_Producto",
+        "Item_MRP":                  "Precio_Maximo",
+        "Outlet_Identifier":         "Codigo_Tienda",
+        "Outlet_Establishment_Year": "Anio_Apertura",
+        "Outlet_Size":               "Tamano_Tienda",
+        "Outlet_Location_Type":      "Ubicacion_Tienda",
+        "Outlet_Type":               "Tipo_Tienda",
+        "Item_Outlet_Sales":         "Ventas_Totales",
+    })
+
     return df
 
 
 datos = cargar_datos()
 
-top50 = datos["Item_Identifier"].value_counts().head(LIMITE_PRODUCTOS).index.tolist()
-tipos_disponibles = sorted(datos["Item_Type"].dropna().unique().tolist())
+top50 = datos["Codigo_Producto"].value_counts().head(LIMITE_PRODUCTOS).index.tolist()
+tipos_disponibles = sorted(datos["Tipo_Producto"].dropna().unique().tolist())
 
 cache_tipo  = {}
 cache_nombre = {}
 for codigo in top50:
-    fila = datos[datos["Item_Identifier"] == codigo]
-    tipo = str(fila.iloc[0]["Item_Type"]) if len(fila) > 0 else ""
+    fila = datos[datos["Codigo_Producto"] == codigo]
+    tipo = str(fila.iloc[0]["Tipo_Producto"]) if len(fila) > 0 else ""
     cache_tipo[codigo]   = tipo
     cache_nombre[codigo] = f"{codigo} ({tipo})" if tipo else codigo
 
@@ -80,15 +97,15 @@ def algoritmo_apriori(soporte_min):
 
     # Paso 1: armar las transacciones
     # cada tienda es una transaccion con la lista de productos que vende
-    df = datos[datos["Item_Identifier"].isin(top50)]
-    lista_tiendas = df["Outlet_Identifier"].unique().tolist()
+    df = datos[datos["Codigo_Producto"].isin(top50)]
+    lista_tiendas = df["Codigo_Tienda"].unique().tolist()
     total_transacciones = len(lista_tiendas)
     frecuencia_minima = total_transacciones * soporte_min
 
     transacciones = {}
     for tienda in lista_tiendas:
-        filas_tienda = df[df["Outlet_Identifier"] == tienda]
-        productos_tienda = filas_tienda["Item_Identifier"].unique().tolist()
+        filas_tienda = df[df["Codigo_Tienda"] == tienda]
+        productos_tienda = filas_tienda["Codigo_Producto"].unique().tolist()
         transacciones[tienda] = productos_tienda
 
     # Paso 2: contar cuantas veces aparece cada par en las transacciones
@@ -143,16 +160,16 @@ def algoritmo_vertical(soporte_min):
 
     # Paso 1: construir la TID-list de cada producto
     # la TID-list es el conjunto de tiendas donde aparece ese producto
-    df = datos[datos["Item_Identifier"].isin(top50)]
-    lista_items = df["Item_Identifier"].unique().tolist()
-    lista_tiendas = df["Outlet_Identifier"].unique().tolist()
+    df = datos[datos["Codigo_Producto"].isin(top50)]
+    lista_items = df["Codigo_Producto"].unique().tolist()
+    lista_tiendas = df["Codigo_Tienda"].unique().tolist()
     total_transacciones = len(lista_tiendas)
     frecuencia_minima = total_transacciones * soporte_min
 
     tidlist = {}
     for item in lista_items:
-        filas_item = df[df["Item_Identifier"] == item]
-        tiendas_del_item = filas_item["Outlet_Identifier"].unique().tolist()
+        filas_item = df[df["Codigo_Producto"] == item]
+        tiendas_del_item = filas_item["Codigo_Tienda"].unique().tolist()
         tidlist[item] = tiendas_del_item
 
     # Paso 2: para cada par de items, la interseccion de sus TID-lists
@@ -194,14 +211,14 @@ def algoritmo_lift(soporte_min):
     limpiar_tabla()
 
     # Paso 1: armar transacciones igual que en Apriori
-    df = datos[datos["Item_Identifier"].isin(top50)]
-    lista_tiendas = df["Outlet_Identifier"].unique().tolist()
+    df = datos[datos["Codigo_Producto"].isin(top50)]
+    lista_tiendas = df["Codigo_Tienda"].unique().tolist()
     total_transacciones = len(lista_tiendas)
 
     transacciones = {}
     for tienda in lista_tiendas:
-        filas_tienda = df[df["Outlet_Identifier"] == tienda]
-        productos_tienda = filas_tienda["Item_Identifier"].unique().tolist()
+        filas_tienda = df[df["Codigo_Tienda"] == tienda]
+        productos_tienda = filas_tienda["Codigo_Producto"].unique().tolist()
         transacciones[tienda] = productos_tienda
 
     # Paso 2: contar cuantas tiendas tienen cada item individual
@@ -277,8 +294,8 @@ def info_dataset():
     info = [
         ("Filas totales",       len(datos),                                  "", ""),
         ("Columnas totales",    len(datos.columns),                          "", ""),
-        ("Tiendas unicas",      len(datos["Outlet_Identifier"].unique()),     "", ""),
-        ("Productos unicos",    len(datos["Item_Identifier"].unique()),       "", ""),
+        ("Tiendas unicas",      len(datos["Codigo_Tienda"].unique()),     "", ""),
+        ("Productos unicos",    len(datos["Codigo_Producto"].unique()),       "", ""),
         ("--- COLUMNAS ---",    "", "", ""),
     ]
     for col in datos.columns:
@@ -305,18 +322,18 @@ def ejecutar(metodo):
 
 def abrir_graficas():
 
-    df = datos[datos["Item_Identifier"].isin(top50)]
-    transacciones = df.groupby("Outlet_Identifier")["Item_Identifier"].apply(list).to_dict()
+    df = datos[datos["Codigo_Producto"].isin(top50)]
+    transacciones = df.groupby("Codigo_Tienda")["Codigo_Producto"].apply(list).to_dict()
     total = len(transacciones)
 
     ventas_por_producto = (
-        df.groupby("Item_Identifier")["Item_Outlet_Sales"]
+        df.groupby("Codigo_Producto")["Ventas_Totales"]
         .sum().sort_values(ascending=False).head(10)
     )
     ventas_por_producto.index = [cache_nombre.get(c, c) for c in ventas_por_producto.index]
 
     ventas_por_tipo = (
-        df.groupby("Item_Type")["Item_Outlet_Sales"]
+        df.groupby("Tipo_Producto")["Ventas_Totales"]
         .sum().sort_values(ascending=False)
     )
 
@@ -345,10 +362,10 @@ def abrir_graficas():
         elif lift < 1: negativos     += 1
         else:          independientes += 1
 
-    grasa = datos["Item_Fat_Content"].value_counts()
+    grasa = datos["Contenido_Grasa"].value_counts()
 
     ventas_por_outlet = (
-        df.groupby("Outlet_Identifier")["Item_Outlet_Sales"]
+        df.groupby("Codigo_Tienda")["Ventas_Totales"]
         .sum().sort_values(ascending=False)
     )
 
