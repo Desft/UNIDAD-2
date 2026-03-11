@@ -51,7 +51,7 @@ datos = datos.drop_duplicates()
 datos = datos.dropna(how="all")
 
 
-#FUNCIONESSS
+#METODO APRIORI
 def algoritmo_apriori(soporte_min,  producto_filtro="Todos"):
     transacciones = datos.groupby("id_tienda")["id_producto"].apply(list)
 
@@ -75,14 +75,14 @@ def algoritmo_apriori(soporte_min,  producto_filtro="Todos"):
     nombres_productos = datos.groupby("id_producto")["tipo_Producto"].first().to_dict()
 
     for par, cantidad in conteo.items():
-        producto1 = nombres_productos[par[0]]
-        producto2 = nombres_productos[par[1]]
+        productoA = nombres_productos[par[0]]
+        productoB = nombres_productos[par[1]]
 
         soporte = cantidad / total 
 
         if soporte >= soporte_min: 
-            if producto_filtro.lower() == "todos" or producto_filtro.lower() == producto1.lower() or producto_filtro.lower() == producto2.lower():
-                resultados.append((producto1, producto2, cantidad, round(soporte*100,2)))
+            if producto_filtro.lower() == "todos" or producto_filtro.lower() == productoA.lower() or producto_filtro.lower() == productoB.lower():
+                resultados.append((productoA, productoB, cantidad, round(soporte*100,2)))
     return resultados[:500]
 
 
@@ -105,14 +105,18 @@ def ventana_apriori():
     entrada_producto.pack(side="left", padx=5)
 
     tabla_apriori = ttk.Treeview(v_apriori)
-    tabla_apriori["columns"] = ("conjunto", "producto1", "producto2", "frecuencia", "soporte")
+    tabla_apriori["columns"] = ("conjunto", "productoA", "productoB", "frecuencia", "soporte")
     tabla_apriori["show"] = "headings"
 
     tabla_apriori.heading("conjunto", text="Conjunto")  
-    tabla_apriori.heading("producto1", text="Producto 1")  
-    tabla_apriori.heading("producto2", text="Producto 2")  
+    tabla_apriori.heading("productoA", text="Producto A")  
+    tabla_apriori.heading("productoB", text="Producto B")  
     tabla_apriori.heading("frecuencia", text="Frecuencia")
     tabla_apriori.heading("soporte", text="Soporte (%)")
+
+    tabla_apriori.tag_configure("par", background="#d2fde2") 
+    tabla_apriori.tag_configure("impar", background="white")
+
 
     tabla_apriori.pack(expand=True, fill="both")
 
@@ -127,11 +131,16 @@ def ventana_apriori():
         resultados = algoritmo_apriori(soporte, producto_filtro) 
 
         for idx, fila in enumerate(resultados, start=1):
-         tabla_apriori.insert("", "end", values=(idx, fila[0], fila[1], fila[2], fila[3]))
-                
+            if idx % 2 == 0: 
+                color = "par" 
+            else:
+                color = "impar"
+            tabla_apriori.insert("", "end", values=(idx, fila[0], fila[1], fila[2], fila[3]), tags=color)
+
     tk.Button(v_apriori, text="EJECUTAR", command=ejecutar_apriori, bg="#476158", fg="white").pack(pady=10)
 
 
+#DATOS VERTICALESS
 def metodo_verticales(soporte_min, producto_filtro):
     transacciones_vertical = datos.groupby("id_producto")["id_tienda"].apply(set).to_dict()
 
@@ -165,16 +174,20 @@ def ventana_verticales():
     entrada_producto.pack(side="left", padx=5)
 
     tabla_vertical = ttk.Treeview(v_vertical)
-    tabla_vertical["columns"] = ("producto","tienda1","tienda2","frecuencia","soporte")
+    tabla_vertical["columns"] = ("producto","tiendaA","tiendaB","frecuencia","soporte")
     tabla_vertical["show"] = "headings"
 
     tabla_vertical.heading("producto", text="Producto")
-    tabla_vertical.heading("tienda1", text="Tienda 1")
-    tabla_vertical.heading("tienda2", text="Tienda 2")
+    tabla_vertical.heading("tiendaA", text="Tienda A")
+    tabla_vertical.heading("tiendaB", text="Tienda B")
     tabla_vertical.heading("frecuencia", text="Frecuencia")
     tabla_vertical.heading("soporte", text="Soporte (%)")
 
-    for col in ("producto","tienda1","tienda2","frecuencia","soporte"):
+    tabla_vertical.tag_configure("par", background="#d2fde2") 
+    tabla_vertical.tag_configure("impar", background="white") 
+
+
+    for col in ("producto","tiendaA","tiendaB","frecuencia","soporte"):
         tabla_vertical.column(col, anchor="center", width=120)
     tabla_vertical.pack(expand=True, fill="both")
 
@@ -195,10 +208,139 @@ def ventana_verticales():
             tienda1 = tiendas[0] if len(tiendas) > 0 else ""
             tienda2 = tiendas[1] if len(tiendas) > 1 else ""
 
-            tabla_vertical.insert("", "end",
-                values=(fila[0], tienda1, tienda2, fila[2], fila[3]))
+            if idx % 2 == 0: 
+                color = "par"
+            else:
+                color = "impar"
+
+            tabla_vertical.insert("", "end",values=(fila[0], tienda1, tienda2, fila[2], fila[3]),tags=(color,)) 
             
     tk.Button(v_vertical, text="EJECUTAR", command=ejecutar_vertical, bg="#476158", fg="white").pack(pady=10)
+
+
+
+#ALGORITMOO LIFTT
+def algoritmo_lift(producto_filtro, relacion_filtro):
+    transacciones = datos.groupby("id_tienda")["id_producto"].apply(list)
+    total = len(transacciones)
+
+    nombres_productos = datos.groupby("id_producto")["tipo_Producto"].first().to_dict()
+
+    soporte_individual = {}
+    conteo_pares = {}
+
+    for productos in transacciones:
+        productos = list(set(productos))
+        for p in productos:
+            if p in soporte_individual:
+                soporte_individual[p] += 1
+            else:
+                soporte_individual[p] = 1
+
+        for i in range(len(productos)):
+            for j in range(i+1, len(productos)):
+                par = (productos[i], productos[j])
+
+                if par in conteo_pares:
+                    conteo_pares[par] += 1
+                else:
+                    conteo_pares[par] = 1
+    resultados = []
+
+    for par in conteo_pares:
+        productoA = par[0]
+        productoB = par[1]
+
+        cantidad = conteo_pares[par]
+
+        soporte_ab = cantidad / total
+        soporte_a = soporte_individual[productoA] / total
+        soporte_b = soporte_individual[productoB] / total
+
+        lift = soporte_ab / (soporte_a * soporte_b)
+
+        nombreA = nombres_productos[productoA]
+        nombreB = nombres_productos[productoB]
+
+        mostrar = True
+        if producto_filtro.lower() != "todos":
+            if producto_filtro.lower() not in nombreA.lower() and producto_filtro.lower() not in nombreB.lower():
+                mostrar = False
+
+        if lift > 1:
+            resultado = "Asociación positiva"
+        elif lift < 1:
+            resultado = "Asociación negativa"
+        else:
+            resultado = "Independencia"
+
+        if relacion_filtro == "Mayor a 1 (>1)" and lift <= 1:
+            mostrar = False
+
+        if relacion_filtro == "Menor a 1 (<1)" and lift >= 1:
+            mostrar = False
+
+        if relacion_filtro == "Igual a 1 (=1)" and round(lift,2) != 1:
+            mostrar = False
+
+
+        if mostrar == True:
+            resultados.append((nombreA, nombreB, round(lift,2), resultado ))
+    return resultados[:500]
+
+
+def ventana_lift():
+    v_lift = tk.Toplevel()
+    v_lift.title("LIFT")
+    v_lift.geometry("1200x600")  
+
+    frame_filtros = tk.Frame(v_lift)
+    frame_filtros.pack(pady=10)
+
+    tk.Label(frame_filtros, text="Producto:").pack(side="left", padx=5)
+
+    lista_p = ["Todos"] + datos["tipo_Producto"].dropna().unique().tolist()
+    combo_prod = ttk.Combobox(frame_filtros, values=lista_p, state="readonly", width=30)
+    combo_prod.current(0)
+    combo_prod.pack(side="left", padx=5)
+
+    tk.Label(frame_filtros, text="Relación:").pack(side="left", padx=5)
+    combo_rel = ttk.Combobox(
+        frame_filtros, values=["Todos", "Mayor a 1 (>1)", "Menor a 1 (<1)", "Igual a 1 (=1)"], state="readonly")
+    combo_rel.current(0)
+    combo_rel.pack(side="left", padx=5)
+
+    columnas = ("conjunto", "productoA", "productoB", "lift", "resultado")
+
+    tabla_lift = ttk.Treeview(v_lift, columns=columnas, show="headings")
+
+    tabla_lift.heading("conjunto", text="Conjunto")
+    tabla_lift.heading("productoA", text="Producto A")
+    tabla_lift.heading("productoB", text="Producto B")
+    tabla_lift.heading("lift", text="Valor Lift")
+    tabla_lift.heading("resultado", text="Significado")
+
+    tabla_lift.tag_configure("par", background="#d2fde2") 
+    tabla_lift.tag_configure("impar", background="white")
+
+    for col in columnas:
+        tabla_lift.column(col, anchor="center", width=150)
+    tabla_lift.column("resultado", width=250)
+    tabla_lift.pack(expand=True, fill="both", padx=10)
+
+    def ejecutar_lift():
+        tabla_lift.delete(*tabla_lift.get_children())
+
+        resultado = algoritmo_lift(combo_prod.get(), combo_rel.get())
+
+        for idx, fila in enumerate(resultado, start=1):  
+            if idx % 2 == 0: 
+                color = "par"
+            else:
+                color = "impar"
+            tabla_lift.insert("", "end", values=(idx, fila[0], fila[1], fila[2], fila[3]), tags=color)
+
+    tk.Button(v_lift, text="EJECUTAR", command=ejecutar_lift, bg="#476158", fg="white").pack(pady=10)
 
 
 
@@ -211,7 +353,7 @@ frame_botones = tk.Frame(ventana)
 frame_botones.pack(pady=5)
 tk.Button( frame_botones, text="APRIORI", command=ventana_apriori, bg="#476158", fg="white",).pack(side="left", padx=5)
 tk.Button(frame_botones, text="VERTICALES", command=ventana_verticales, width=12,  bg="#476158", fg="white").pack(side="left", padx=5)
-tk.Button(frame_botones, text="LIFT", width=12,  bg="#476158", fg="white").pack(side="left", padx=5)
+tk.Button(frame_botones, text="LIFT", width=12, command=ventana_lift, bg="#476158", fg="white").pack(side="left", padx=5)
 tk.Button(frame_botones, text="GRAFICAS", width=12,  bg="#476158", fg="white").pack(side="left", padx=5)
 
 
@@ -226,8 +368,16 @@ for col in datos.columns:
     tabla.heading(col, text=col)
     tabla.column(col, width=120)
 
-for fila in datos.head(200).values.tolist():
-    tabla.insert("", "end", values=fila)
+tabla.tag_configure("par", background="#d2fde2") 
+tabla.tag_configure("impar", background="white")
+
+for idx, fila in enumerate(datos.head(200).values.tolist(), start=1):
+    if idx % 2 == 0: 
+        color = "par"
+    else:
+        color = "impar"
+
+    tabla.insert("", "end", values=fila, tags=(color,)) 
 
 scroll_y = ttk.Scrollbar(frame_tabla, orient="vertical", command=tabla.yview)
 scroll_x = ttk.Scrollbar(frame_tabla, orient="horizontal", command=tabla.xview)
