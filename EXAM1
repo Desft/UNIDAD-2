@@ -1,0 +1,106 @@
+import pandas as pd
+import tkinter as tk
+from tkinter import ttk
+
+
+#ANALISIS Y LIMPIEZAAAA
+datos = pd.read_csv("ventas wal.csv", sep=";")
+print(datos.head())
+
+print("\nCOLUMNAS Y EL TIPO DE DATO:", datos.dtypes)
+
+print("\nINFORMACIÓN GENERAL DEL ARCHIVO:", datos.info())
+
+print("\nVALORES UNICOS EN CADA COLUMNA:", datos.nunique())
+
+print("\nPRODUCTOS:", datos["Item_Type"].value_counts())
+
+print("\nCONTENIDO DE GRASA:")
+print(datos["Item_Fat_Content"].value_counts())
+datos["Item_Fat_Content"] = datos["Item_Fat_Content"].replace({
+    "LF": "Low Fat",
+    "low fat": "Low Fat",
+    "reg": "Regular"})
+
+print("\nCONTENIDO DE GRASA:")
+print(datos["Item_Fat_Content"].value_counts())
+
+print("\nVALORES NULOS EN CADA COLUMNA:",datos.isnull().sum())
+
+datos["Item_Weight"] = datos["Item_Weight"].fillna(datos["Item_Weight"].median())
+datos["Outlet_Size"] = datos["Outlet_Size"].fillna(datos["Outlet_Size"].mode()[0])
+
+print("\nVALORES NULOS EN CADA COLUMNA:",datos.isnull().sum())
+
+datos = datos.rename(columns={
+        "Item_Identifier":"id_producto",
+        "Item_Weight":"peso_producto",
+        "Item_Fat_Content":"contenido_grasa",
+        "Item_Visibility":"visibilidad",
+        "Item_Type":"tipo_Producto",
+        "Item_MRP":"precio_producto",
+        "Outlet_Identifier":"id_tienda",
+        "Outlet_Establishment_Year":"año_apertura",
+        "Outlet_Size":"tamaño_tienda",
+        "Outlet_Location_Type":"tipo_ubicacion",
+        "Outlet_Type":"tipo_tienda",
+        "Item_Outlet_Sales":"ventas_totales",
+    })
+
+
+datos = datos.drop_duplicates()
+datos = datos.dropna(how="all")
+print(datos.head(10))
+
+
+#FUNCIONESSS
+def ventana2():
+    nueva = tk.Toplevel()
+    nueva.title("Ventana 2")
+    nueva.geometry("1200x600")
+    tk.Label(nueva, text="Bienvenido a la ventana 2").pack(pady=20)
+
+
+ventana = tk.Tk()
+ventana.geometry("1200x600")
+ventana.title("Tabla de Datos")
+
+frame_botones = tk.Frame(ventana)
+frame_botones.pack(pady=5)
+tk.Button(frame_botones, text="Botón 1", width=12).pack(side="left", padx=5)
+tk.Button( frame_botones, text="Ir a ventana 2", command=ventana2).pack(side="left", padx=5)
+
+
+frame_tabla = tk.Frame(ventana)
+frame_tabla.pack(expand=True, fill="both")
+
+tabla = ttk.Treeview(frame_tabla)
+tabla["columns"] = list(datos.columns)
+tabla["show"] = "headings"
+
+for col in datos.columns:
+    tabla.heading(col, text=col)
+    tabla.column(col, width=120)
+
+for fila in datos.head(200).values.tolist():
+    tabla.insert("", "end", values=fila)
+
+scroll_y = ttk.Scrollbar(frame_tabla, orient="vertical", command=tabla.yview)
+scroll_x = ttk.Scrollbar(frame_tabla, orient="horizontal", command=tabla.xview)
+tabla.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
+scroll_y.pack(side="right", fill="y")
+scroll_x.pack(side="bottom", fill="x")
+
+tabla.pack(expand=True, fill="both")
+ventana.mainloop()
+
+
+
+
+
+
+
+
+
+
+
