@@ -70,11 +70,7 @@ def algoritmo_apriori(soporte_min):
     mostrar_estado("Calculando Apriori...", "blue")
     limpiar_tabla()
 
-    df = datos[datos["Item_Identifier"].isin(top50)]
-    transacciones = df.groupby("Outlet_Identifier")["Item_Identifier"].apply(list).to_dict()
-    total = len(transacciones)
-    minimo = total * soporte_min
-
+    # Leer filtros de frecuencia
     try:
         frec_min = int(entrada_frec_min.get()) if entrada_frec_min.get().strip() else 0
         frec_max = int(entrada_frec_max.get()) if entrada_frec_max.get().strip() else 99999
@@ -82,33 +78,62 @@ def algoritmo_apriori(soporte_min):
         mostrar_estado("Error: los valores de frecuencia deben ser numeros enteros", "red")
         return
 
-    conteo = {}
-    for productos in transacciones.values():
-        productos = sorted(set(productos))
-        for i in range(len(productos)):
-            for j in range(i + 1, len(productos)):
-                par = (productos[i], productos[j])
-                conteo[par] = conteo.get(par, 0) + 1
+    # Paso 1: armar las transacciones
+    # cada tienda es una transaccion con la lista de productos que vende
+    df = datos[datos["Item_Identifier"].isin(top50)]
+    lista_tiendas = df["Outlet_Identifier"].unique().tolist()
+    total_transacciones = len(lista_tiendas)
+    frecuencia_minima = total_transacciones * soporte_min
 
+    transacciones = {}
+    for tienda in lista_tiendas:
+        filas_tienda = df[df["Outlet_Identifier"] == tienda]
+        productos_tienda = filas_tienda["Item_Identifier"].unique().tolist()
+        transacciones[tienda] = productos_tienda
+
+    # Paso 2: contar cuantas veces aparece cada par en las transacciones
+    # recorremos cada tienda y contamos todos los pares posibles dentro de ella
+    conteo_pares = {}
+    for tienda in transacciones:
+        productos = sorted(transacciones[tienda])
+        i = 0
+        while i < len(productos):
+            j = i + 1
+            while j < len(productos):
+                item_a = productos[i]
+                item_b = productos[j]
+                par = (item_a, item_b)
+                if par in conteo_pares:
+                    conteo_pares[par] = conteo_pares[par] + 1
+                else:
+                    conteo_pares[par] = 1
+                j = j + 1
+            i = i + 1
+
+    # Paso 3: filtrar los pares que superan el soporte minimo
+    # soporte = (veces que aparece el par) / (total de transacciones)
     resultados = []
-    for (a, b), veces in conteo.items():
-        if veces >= minimo and frec_min <= veces <= frec_max and filtro_tipo_activo(a, b):
-            porcentaje = f"{round((veces / total) * 100, 2)}%"
-            resultados.append((nombre_producto(a), nombre_producto(b), veces, porcentaje))
+    for par in conteo_pares:
+        veces = conteo_pares[par]
+        soporte_par = veces / total_transacciones
+        soporte_porcentaje = round(soporte_par * 100, 2)
+
+        if veces >= frecuencia_minima and frec_min <= veces <= frec_max:
+            item_a = par[0]
+            item_b = par[1]
+            if filtro_tipo_activo(item_a, item_b):
+                fila = (nombre_producto(item_a), nombre_producto(item_b), veces, str(soporte_porcentaje) + "%")
+                resultados.append(fila)
 
     mostrar_resultados(resultados)
-    mostrar_estado(f"Apriori listo — {len(resultados)} pares encontrados", "green")
+    mostrar_estado("Apriori listo — " + str(len(resultados)) + " pares encontrados", "green")
 
 
 def algoritmo_vertical(soporte_min):
     mostrar_estado("Calculando Vertical...", "blue")
     limpiar_tabla()
 
-    df = datos[datos["Item_Identifier"].isin(top50)]
-    tidlists = df.groupby("Item_Identifier")["Outlet_Identifier"].apply(set).to_dict()
-    total = len(df["Outlet_Identifier"].unique())
-    minimo = total * soporte_min
-
+    # Leer filtros de frecuencia
     try:
         frec_min = int(entrada_frec_min.get()) if entrada_frec_min.get().strip() else 0
         frec_max = int(entrada_frec_max.get()) if entrada_frec_max.get().strip() else 99999
@@ -116,66 +141,136 @@ def algoritmo_vertical(soporte_min):
         mostrar_estado("Error: los valores de frecuencia deben ser numeros enteros", "red")
         return
 
-    items = list(tidlists.keys())
+    # Paso 1: construir la TID-list de cada producto
+    # la TID-list es el conjunto de tiendas donde aparece ese producto
+    df = datos[datos["Item_Identifier"].isin(top50)]
+    lista_items = df["Item_Identifier"].unique().tolist()
+    lista_tiendas = df["Outlet_Identifier"].unique().tolist()
+    total_transacciones = len(lista_tiendas)
+    frecuencia_minima = total_transacciones * soporte_min
+
+    tidlist = {}
+    for item in lista_items:
+        filas_item = df[df["Item_Identifier"] == item]
+        tiendas_del_item = filas_item["Outlet_Identifier"].unique().tolist()
+        tidlist[item] = tiendas_del_item
+
+    # Paso 2: para cada par de items, la interseccion de sus TID-lists
+    # nos dice en cuantas tiendas coinciden los dos productos
     resultados = []
-    for i in range(len(items)):
-        for j in range(i + 1, len(items)):
-            a, b = items[i], items[j]
-            comunes = len(tidlists[a] & tidlists[b])
-            if comunes >= minimo and frec_min <= comunes <= frec_max and filtro_tipo_activo(a, b):
-                porcentaje = f"{round((comunes / total) * 100, 2)}%"
-                resultados.append((nombre_producto(a), nombre_producto(b), comunes, porcentaje))
+    i = 0
+    while i < len(lista_items):
+        j = i + 1
+        while j < len(lista_items):
+            item_a = lista_items[i]
+            item_b = lista_items[j]
+
+            # interseccion manual: buscar tiendas que esten en ambas listas
+            tiendas_a = tidlist[item_a]
+            tiendas_b = tidlist[item_b]
+            tiendas_comunes = []
+            for tienda in tiendas_a:
+                if tienda in tiendas_b:
+                    tiendas_comunes.append(tienda)
+
+            veces = len(tiendas_comunes)
+            soporte_par = veces / total_transacciones
+            soporte_porcentaje = round(soporte_par * 100, 2)
+
+            if veces >= frecuencia_minima and frec_min <= veces <= frec_max:
+                if filtro_tipo_activo(item_a, item_b):
+                    fila = (nombre_producto(item_a), nombre_producto(item_b), veces, str(soporte_porcentaje) + "%")
+                    resultados.append(fila)
+
+            j = j + 1
+        i = i + 1
 
     mostrar_resultados(resultados)
-    mostrar_estado(f"Vertical listo — {len(resultados)} pares encontrados", "green")
+    mostrar_estado("Vertical listo — " + str(len(resultados)) + " pares encontrados", "green")
 
 
 def algoritmo_lift(soporte_min):
     mostrar_estado("Calculando Lift...", "blue")
     limpiar_tabla()
 
+    # Paso 1: armar transacciones igual que en Apriori
     df = datos[datos["Item_Identifier"].isin(top50)]
-    transacciones = df.groupby("Outlet_Identifier")["Item_Identifier"].apply(list).to_dict()
-    total = len(transacciones)
+    lista_tiendas = df["Outlet_Identifier"].unique().tolist()
+    total_transacciones = len(lista_tiendas)
 
-    frecuencia = {}
-    for productos in transacciones.values():
-        for item in productos:
-            frecuencia[item] = frecuencia.get(item, 0) + 1
+    transacciones = {}
+    for tienda in lista_tiendas:
+        filas_tienda = df[df["Outlet_Identifier"] == tienda]
+        productos_tienda = filas_tienda["Item_Identifier"].unique().tolist()
+        transacciones[tienda] = productos_tienda
 
-    conteo = {}
-    for productos in transacciones.values():
-        productos = sorted(set(productos))
-        for i in range(len(productos)):
-            for j in range(i + 1, len(productos)):
+    # Paso 2: contar cuantas tiendas tienen cada item individual
+    # esto es el soporte individual de cada producto
+    conteo_individual = {}
+    for tienda in transacciones:
+        for item in transacciones[tienda]:
+            if item in conteo_individual:
+                conteo_individual[item] = conteo_individual[item] + 1
+            else:
+                conteo_individual[item] = 1
+
+    # Paso 3: contar pares igual que en Apriori
+    conteo_pares = {}
+    for tienda in transacciones:
+        productos = sorted(transacciones[tienda])
+        i = 0
+        while i < len(productos):
+            j = i + 1
+            while j < len(productos):
                 par = (productos[i], productos[j])
-                conteo[par] = conteo.get(par, 0) + 1
+                if par in conteo_pares:
+                    conteo_pares[par] = conteo_pares[par] + 1
+                else:
+                    conteo_pares[par] = 1
+                j = j + 1
+            i = i + 1
 
+    # Paso 4: calcular el lift de cada par
+    # lift(A,B) = soporte(A y B) / ( soporte(A) * soporte(B) )
+    # si lift > 1 los productos se compran juntos mas de lo esperado (correlacion positiva)
+    # si lift < 1 se compran juntos menos de lo esperado (correlacion negativa)
+    # si lift = 1 son independientes, no hay relacion
     operador = combo_lift_op.get()
-    valor    = float(entrada_lift_val.get())
-
-    def cumple_lift(lift):
-        ops = {">": lift > valor, "<": lift < valor, ">=": lift >= valor, "<=": lift <= valor, "=": lift == valor}
-        return ops.get(operador, False)
-
-    def etiqueta_lift(lift):
-        if lift > 1:   return "Correlacion positiva"
-        if lift < 1:   return "Correlacion negativa"
-        return "Independencia"
+    valor_filtro = float(entrada_lift_val.get())
 
     resultados = []
-    for (a, b), veces in conteo.items():
-        sop_ab = veces / total
-        sop_a  = frecuencia[a] / total
-        sop_b  = frecuencia[b] / total
-        lift   = round(sop_ab / (sop_a * sop_b), 2)
+    for par in conteo_pares:
+        item_a = par[0]
+        item_b = par[1]
+        veces_par = conteo_pares[par]
 
-        if cumple_lift(lift) and filtro_tipo_activo(a, b):
-            resultados.append((nombre_producto(a), nombre_producto(b), lift, etiqueta_lift(lift)))
+        soporte_ab = veces_par / total_transacciones
+        soporte_a  = conteo_individual[item_a] / total_transacciones
+        soporte_b  = conteo_individual[item_b] / total_transacciones
+
+        lift = round(soporte_ab / (soporte_a * soporte_b), 2)
+
+        # aplicar el filtro de operador que eligio el usuario
+        pasa = False
+        if operador == ">"  and lift >  valor_filtro: pasa = True
+        if operador == "<"  and lift <  valor_filtro: pasa = True
+        if operador == ">=" and lift >= valor_filtro: pasa = True
+        if operador == "<=" and lift <= valor_filtro: pasa = True
+        if operador == "="  and lift == valor_filtro: pasa = True
+
+        if pasa and filtro_tipo_activo(item_a, item_b):
+            if   lift > 1: etiqueta = "Correlacion positiva"
+            elif lift < 1: etiqueta = "Correlacion negativa"
+            else:          etiqueta = "Independencia"
+            fila = (nombre_producto(item_a), nombre_producto(item_b), lift, etiqueta)
+            resultados.append(fila)
 
     mostrar_resultados(resultados)
-    mostrar_estado(f"Lift listo — {len(resultados)} pares encontrados", "green")
+    mostrar_estado("Lift listo — " + str(len(resultados)) + " pares encontrados", "green")
 
+#===============================================
+#=============== OSWALDO =======================
+#===============================================
 
 def info_dataset():
     limpiar_tabla()
@@ -207,7 +302,6 @@ def ejecutar(metodo):
         "INFO":     lambda: info_dataset(),
     }
     threading.Thread(target=mapa[metodo]).start()
-
 
 def abrir_graficas():
 
@@ -375,6 +469,10 @@ def abrir_graficas():
     ax6.grid(axis="x", color="#30363d", linewidth=0.5)
     ax6.grid(axis="y", visible=False)
     incrustar_figura(fig6, tab6)
+
+#===============================================
+#=============== OSWALDO =======================
+#===============================================
 
 
 ventana = tk.Tk()
