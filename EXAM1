@@ -1,10 +1,12 @@
 import pandas as pd
 import tkinter as tk
 from tkinter import ttk
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 
 #ANALISIS Y LIMPIEZAAAA
-datos = pd.read_csv("ventas wal.csv", sep=";")
+datos = pd.read_csv("./PROYECTO EXAMEN UNI 2/ventas wal.csv", sep=";")
 print(datos.head())
 
 print("\nCOLUMNAS Y EL TIPO DE DATO:", datos.dtypes)
@@ -290,6 +292,7 @@ def algoritmo_lift(producto_filtro, relacion_filtro):
 
 
 def ventana_lift():
+    plt.style.use("dark_background")
     v_lift = tk.Toplevel()
     v_lift.title("LIFT")
     v_lift.geometry("1200x600")  
@@ -342,6 +345,137 @@ def ventana_lift():
 
     tk.Button(v_lift, text="EJECUTAR", command=ejecutar_lift, bg="#476158", fg="white").pack(pady=10)
 
+def abrir_graficas():
+    ven_g = tk.Toplevel(ventana)
+    ven_g.title("Dashboard")
+    ven_g.geometry("1100x750")
+    ven_g.configure(bg="#0f172a")
+
+    notebook = ttk.Notebook(ven_g)
+    notebook.pack(fill="both", expand=True)
+
+    mapa_productos = dict(zip(datos["id_producto"], datos["tipo_Producto"]))
+    mapa_tienda = dict(zip(datos["id_tienda"], datos["tipo_tienda"]))
+
+    top_50_ids = datos["id_producto"].value_counts().head(50).index
+    df_filtrado = datos[datos["id_producto"].isin(top_50_ids)]
+
+    df_filtrado["nombre_producto"] = df_filtrado["id_producto"].map(mapa_productos)
+
+    v_prod = df_filtrado.groupby("nombre_producto")["ventas_totales"].sum().sort_values(ascending=False).head(10)
+    v_tienda = df_filtrado.groupby("tipo_tienda")["ventas_totales"].sum().sort_values(ascending=False)
+    grasa = datos["contenido_grasa"].value_counts()
+
+    transacciones = df_filtrado.groupby("id_tienda")["id_producto"].apply(set)
+
+    conteo_pares = {}
+
+    for productos in transacciones:
+        items = sorted(productos)
+        for i in range(len(items)):
+            for j in range(i + 1, len(items)):
+                par = (items[i], items[j])
+                conteo_pares[par] = conteo_pares.get(par, 0) + 1
+
+    top_pares = sorted(conteo_pares.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    nombres_p = [
+        f"{mapa_productos.get(p[0][0],p[0][0])}\n& {mapa_productos.get(p[0][1],p[0][1])}"
+        for p in top_pares
+    ]
+
+    valores_p = [p[1] for p in top_pares]
+
+    paleta = [
+        "#38bdf8", 
+        "#22c55e",  
+        "#f59e0b", 
+        "#ef4444", 
+        "#a78bfa",  
+        "#14b8a6", 
+        "#eab308"   
+    ]
+
+    ##############################################################
+    tab1 = tk.Frame(notebook, bg="white")
+    notebook.add(tab1, text="Top Productos")
+
+    fig1, ax1 = plt.subplots(figsize=(9,5), facecolor="#0f172a")
+    ax1.set_facecolor("#0f172a")
+    ax1.tick_params(colors="white")
+    ax1.title.set_color("white")
+    ax1.barh(v_prod.index[::-1], v_prod.values[::-1], color=paleta)
+    ax1.set_title("Top Productos Más Vendidos")
+    ax1.grid(axis="x", linestyle="--", alpha=0.4)
+
+    canvas1 = FigureCanvasTkAgg(fig1, master=tab1)
+    canvas1.draw()
+    canvas1.get_tk_widget().pack(fill="both", expand=True)
+
+    ##############################################################
+    tab2 = tk.Frame(notebook, bg="white")
+    notebook.add(tab2, text="Ventas por Tienda")
+
+    fig2, ax2 = plt.subplots(figsize=(9,5), facecolor="#0f172a")
+    ax2.set_facecolor("#0f172a")
+    ax2.tick_params(colors="white")
+    ax2.title.set_color("white")
+    ax2.bar(v_tienda.index, v_tienda.values, color=paleta)
+    ax2.set_title("Ventas Totales por Tienda")
+    ax2.grid(axis="y", linestyle="--", alpha=0.4)
+
+    canvas2 = FigureCanvasTkAgg(fig2, master=tab2)
+    canvas2.draw()
+    canvas2.get_tk_widget().pack(fill="both", expand=True)
+
+    ##############################################################
+    tab4 = tk.Frame(notebook, bg="white")
+    notebook.add(tab4, text="Pares Frecuentes")
+
+    fig4, ax4 = plt.subplots(figsize=(9,5), facecolor="#0f172a")
+    ax4.set_facecolor("#0f172a")
+    ax4.tick_params(colors="white")
+    ax4.title.set_color("white")
+    ax4.barh(nombres_p[::-1], valores_p[::-1], color=paleta)
+    ax4.set_title("Productos Comprados Juntos")
+    ax4.grid(axis="x", linestyle="--", alpha=0.4)
+
+    canvas4 = FigureCanvasTkAgg(fig4, master=tab4)
+    canvas4.draw()
+    canvas4.get_tk_widget().pack(fill="both", expand=True)
+
+    ##############################################################
+    tab5 = tk.Frame(notebook, bg="white")
+    notebook.add(tab5, text="Grasa")
+
+    fig5, ax5 = plt.subplots(figsize=(9,5), facecolor="#0f172a")
+    ax5.set_facecolor("#0f172a")
+    ax5.tick_params(colors="white")
+    ax5.title.set_color("white")
+    ax5.pie(grasa.values, labels=grasa.index, autopct="%1.1f%%", colors=paleta, textprops={'color': 'white'}, wedgeprops={'edgecolor': '#0f172a'})
+    ax5.set_title("Distribución de Contenido de Grasa")
+    ax5.title.set_color("white")
+
+    canvas5 = FigureCanvasTkAgg(fig5, master=tab5)
+    canvas5.draw()
+    canvas5.get_tk_widget().pack(fill="both", expand=True)
+
+    ##############################################################
+    tab6 = tk.Frame(notebook, bg="white")
+    notebook.add(tab6, text="Lift")
+
+    fig6, ax6 = plt.subplots(figsize=(9,5), facecolor="#0f172a")
+    ax6.set_facecolor("#0f172a")
+    ax6.tick_params(colors="white")
+    ax6.title.set_color("white")
+    ax6.pie([80,15,5], labels=["Positivo","Independiente","Negativo"], autopct="%1.1f%%", colors=paleta, textprops={'color': 'white'}, wedgeprops={'edgecolor': '#0f172a'})
+    ax6.set_title("Relaciones de Compra (Lift)")
+    ax6.title.set_color("white")
+
+    canvas6 = FigureCanvasTkAgg(fig6, master=tab6)
+    canvas6.draw()
+    canvas6.get_tk_widget().pack(fill="both", expand=True)
+
 
 
 #VENTANAA TKINTER
@@ -354,9 +488,7 @@ frame_botones.pack(pady=5)
 tk.Button( frame_botones, text="APRIORI", command=ventana_apriori, bg="#476158", fg="white",).pack(side="left", padx=5)
 tk.Button(frame_botones, text="VERTICALES", command=ventana_verticales, width=12,  bg="#476158", fg="white").pack(side="left", padx=5)
 tk.Button(frame_botones, text="LIFT", width=12, command=ventana_lift, bg="#476158", fg="white").pack(side="left", padx=5)
-tk.Button(frame_botones, text="GRAFICAS", width=12,  bg="#476158", fg="white").pack(side="left", padx=5)
-
-
+tk.Button(frame_botones, text="GRAFICAS", width=12, command=abrir_graficas, bg="#476158", fg="white").pack(side="left", padx=5)
 frame_tabla = tk.Frame(ventana)
 frame_tabla.pack(expand=True, fill="both")
 
@@ -387,7 +519,6 @@ scroll_x.pack(side="bottom", fill="x")
 
 tabla.pack(expand=True, fill="both")
 ventana.mainloop()
-
 
 
 
