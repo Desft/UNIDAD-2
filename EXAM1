@@ -57,6 +57,7 @@ def algoritmo_apriori(soporte_min,  producto_filtro="Todos"):
 
     total = len(transacciones)
     minimo = total * soporte_min
+    print(total)
 
     conteo = {}
     for productos in transacciones:
@@ -77,9 +78,11 @@ def algoritmo_apriori(soporte_min,  producto_filtro="Todos"):
         producto1 = nombres_productos[par[0]]
         producto2 = nombres_productos[par[1]]
 
-        if producto_filtro.lower() == "todos" or producto_filtro.lower() == producto1.lower() or producto_filtro.lower() == producto2.lower():
-            soporte = round((cantidad / total) * 100, 2)
-            resultados.append((producto1, producto2, cantidad, soporte))
+        soporte = cantidad / total 
+
+        if soporte >= soporte_min: 
+            if producto_filtro.lower() == "todos" or producto_filtro.lower() == producto1.lower() or producto_filtro.lower() == producto2.lower():
+                resultados.append((producto1, producto2, cantidad, round(soporte*100,2)))
     return resultados[:500]
 
 
@@ -96,15 +99,16 @@ def ventana_apriori():
     entrada_soporte.pack(side="left", padx=5)
 
     tk.Label(frame_filtros, text="Producto:").pack(side="left")
-    lista_productos = ["Todos"] + sorted(datos["tipo_Producto"].dropna().unique().tolist())
+    lista_productos = ["Todos"] + (datos["tipo_Producto"].dropna().unique().tolist())
     entrada_producto = ttk.Combobox(frame_filtros, values=lista_productos, state="readonly") 
     entrada_producto.current(0) 
     entrada_producto.pack(side="left", padx=5)
 
     tabla_apriori = ttk.Treeview(v_apriori)
-    tabla_apriori["columns"] = ("producto1", "producto2", "frecuencia", "soporte")
+    tabla_apriori["columns"] = ("conjunto", "producto1", "producto2", "frecuencia", "soporte")
     tabla_apriori["show"] = "headings"
 
+    tabla_apriori.heading("conjunto", text="Conjunto")  
     tabla_apriori.heading("producto1", text="Producto 1")  
     tabla_apriori.heading("producto2", text="Producto 2")  
     tabla_apriori.heading("frecuencia", text="Frecuencia")
@@ -120,12 +124,82 @@ def ventana_apriori():
             soporte = 0.6  
 
         producto_filtro = entrada_producto.get()
-        resultados = algoritmo_apriori(soporte, producto_filtro)
+        resultados = algoritmo_apriori(soporte, producto_filtro) 
 
-        for fila in resultados:
-            tabla_apriori.insert("", "end", values=fila)
+        for idx, fila in enumerate(resultados, start=1):
+         tabla_apriori.insert("", "end", values=(idx, fila[0], fila[1], fila[2], fila[3]))
                 
-    tk.Button(v_apriori, text="Ejecutar Apriori", command=ejecutar_apriori).pack(pady=10)
+    tk.Button(v_apriori, text="EJECUTAR", command=ejecutar_apriori, bg="#476158", fg="white").pack(pady=10)
+
+
+def metodo_verticales(soporte_min, producto_filtro):
+    transacciones_vertical = datos.groupby("id_producto")["id_tienda"].apply(set).to_dict()
+
+    total = datos["id_tienda"].nunique()
+    nombres_productos = datos.groupby("id_producto")["tipo_Producto"].first().to_dict()
+    resultados = []
+
+    for producto, tiendas in transacciones_vertical.items():
+        frecuencia = len(tiendas)
+        soporte = frecuencia / total
+        if soporte >= soporte_min:
+            resultados.append(( nombres_productos[producto], tiendas, frecuencia,round(soporte*100,2)))
+    return resultados
+
+def ventana_verticales():
+    v_vertical = tk.Toplevel()
+    v_vertical.title("Datos Verticales")
+    v_vertical.geometry("1200x600")
+
+    frame_filtros = tk.Frame(v_vertical)
+    frame_filtros.pack(pady=10)
+
+    tk.Label(frame_filtros, text="Soporte (0.1 - 1):").pack(side="left")
+    entrada_soporte = tk.Entry(frame_filtros, width=10)
+    entrada_soporte.pack(side="left", padx=5)
+
+    tk.Label(frame_filtros, text="Producto:").pack(side="left")
+    lista_productos = ["Todos"] + datos["tipo_Producto"].dropna().unique().tolist()
+    entrada_producto = ttk.Combobox(frame_filtros, values=lista_productos, state="readonly")
+    entrada_producto.current(0)
+    entrada_producto.pack(side="left", padx=5)
+
+    tabla_vertical = ttk.Treeview(v_vertical)
+    tabla_vertical["columns"] = ("producto","tienda1","tienda2","frecuencia","soporte")
+    tabla_vertical["show"] = "headings"
+
+    tabla_vertical.heading("producto", text="Producto")
+    tabla_vertical.heading("tienda1", text="Tienda 1")
+    tabla_vertical.heading("tienda2", text="Tienda 2")
+    tabla_vertical.heading("frecuencia", text="Frecuencia")
+    tabla_vertical.heading("soporte", text="Soporte (%)")
+
+    for col in ("producto","tienda1","tienda2","frecuencia","soporte"):
+        tabla_vertical.column(col, anchor="center", width=120)
+    tabla_vertical.pack(expand=True, fill="both")
+
+
+    def ejecutar_vertical():
+        tabla_vertical.delete(*tabla_vertical.get_children())
+        try:
+            soporte = float(entrada_soporte.get())
+        except:
+            soporte = 0.6
+
+        producto_filtro = entrada_producto.get()
+
+        resultados = metodo_verticales(soporte, producto_filtro)
+
+        for idx, fila in enumerate(resultados, start=1):
+            tiendas = list(fila[1]) 
+            tienda1 = tiendas[0] if len(tiendas) > 0 else ""
+            tienda2 = tiendas[1] if len(tiendas) > 1 else ""
+
+            tabla_vertical.insert("", "end",
+                values=(fila[0], tienda1, tienda2, fila[2], fila[3]))
+            
+    tk.Button(v_vertical, text="EJECUTAR", command=ejecutar_vertical, bg="#476158", fg="white").pack(pady=10)
+
 
 
 #VENTANAA TKINTER
@@ -135,8 +209,11 @@ ventana.title("Tabla de Datos")
 
 frame_botones = tk.Frame(ventana)
 frame_botones.pack(pady=5)
-tk.Button( frame_botones, text="Apriori", command=ventana_apriori).pack(side="left", padx=5)
-tk.Button(frame_botones, text="Botón 1", width=12).pack(side="left", padx=5)
+tk.Button( frame_botones, text="APRIORI", command=ventana_apriori, bg="#476158", fg="white",).pack(side="left", padx=5)
+tk.Button(frame_botones, text="VERTICALES", command=ventana_verticales, width=12,  bg="#476158", fg="white").pack(side="left", padx=5)
+tk.Button(frame_botones, text="LIFT", width=12,  bg="#476158", fg="white").pack(side="left", padx=5)
+tk.Button(frame_botones, text="GRAFICAS", width=12,  bg="#476158", fg="white").pack(side="left", padx=5)
+
 
 frame_tabla = tk.Frame(ventana)
 frame_tabla.pack(expand=True, fill="both")
