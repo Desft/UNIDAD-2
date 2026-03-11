@@ -47,18 +47,86 @@ datos = datos.rename(columns={
         "Item_Outlet_Sales":"ventas_totales",
     })
 
-
 datos = datos.drop_duplicates()
 datos = datos.dropna(how="all")
-print(datos.head(10))
 
 
 #FUNCIONESSS
-def ventana2():
-    nueva = tk.Toplevel()
-    nueva.title("Ventana 2")
-    nueva.geometry("1200x600")
-    tk.Label(nueva, text="Bienvenido a la ventana 2").pack(pady=20)
+def algoritmo_apriori(soporte_min,  producto_filtro="Todos"):
+    transacciones = datos.groupby("id_tienda")["id_producto"].apply(list)
+
+    total = len(transacciones)
+    minimo = total * soporte_min
+
+    conteo = {}
+    for productos in transacciones:
+        productos = list(set(productos))
+        for i in range(len(productos)):
+            for j in range(i + 1, len(productos)):
+                par = (productos[i], productos[j]) 
+
+                if par in conteo:
+                    conteo[par] += 1
+                else:
+                    conteo[par] = 1
+    resultados = []
+
+    nombres_productos = datos.groupby("id_producto")["tipo_Producto"].first().to_dict()
+
+    for par, cantidad in conteo.items():
+        producto1 = nombres_productos[par[0]]
+        producto2 = nombres_productos[par[1]]
+
+        if producto_filtro.lower() == "todos" or producto_filtro.lower() == producto1.lower() or producto_filtro.lower() == producto2.lower():
+            soporte = round((cantidad / total) * 100, 2)
+            resultados.append((producto1, producto2, cantidad, soporte))
+    return resultados[:500]
+
+
+def ventana_apriori():
+    v_apriori = tk.Toplevel()
+    v_apriori.title("Apriori")
+    v_apriori.geometry("1200x600")
+
+    frame_filtros = tk.Frame(v_apriori)
+    frame_filtros.pack(pady=10)
+
+    tk.Label(frame_filtros, text="Soporte (0.1 - 1):").pack(side="left")
+    entrada_soporte = tk.Entry(frame_filtros, width=10)
+    entrada_soporte.pack(side="left", padx=5)
+
+    tk.Label(frame_filtros, text="Producto:").pack(side="left")
+    lista_productos = ["Todos"] + sorted(datos["tipo_Producto"].dropna().unique().tolist())
+    entrada_producto = ttk.Combobox(frame_filtros, values=lista_productos, state="readonly") 
+    entrada_producto.current(0) 
+    entrada_producto.pack(side="left", padx=5)
+
+    tabla_apriori = ttk.Treeview(v_apriori)
+    tabla_apriori["columns"] = ("producto1", "producto2", "frecuencia", "soporte")
+    tabla_apriori["show"] = "headings"
+
+    tabla_apriori.heading("producto1", text="Producto 1")  
+    tabla_apriori.heading("producto2", text="Producto 2")  
+    tabla_apriori.heading("frecuencia", text="Frecuencia")
+    tabla_apriori.heading("soporte", text="Soporte (%)")
+
+    tabla_apriori.pack(expand=True, fill="both")
+
+    def ejecutar_apriori():
+        tabla_apriori.delete(*tabla_apriori.get_children())
+        try:
+            soporte = float(entrada_soporte.get())
+        except:
+            soporte = 0.6  
+
+        producto_filtro = entrada_producto.get()
+        resultados = algoritmo_apriori(soporte, producto_filtro)
+
+        for fila in resultados:
+            tabla_apriori.insert("", "end", values=fila)
+                
+    tk.Button(v_apriori, text="Ejecutar Apriori", command=ejecutar_apriori).pack(pady=10)
+
 
 #VENTANAA TKINTER
 ventana = tk.Tk()
@@ -67,8 +135,8 @@ ventana.title("Tabla de Datos")
 
 frame_botones = tk.Frame(ventana)
 frame_botones.pack(pady=5)
+tk.Button( frame_botones, text="Apriori", command=ventana_apriori).pack(side="left", padx=5)
 tk.Button(frame_botones, text="Botón 1", width=12).pack(side="left", padx=5)
-tk.Button( frame_botones, text="Ir a ventana 2", command=ventana2).pack(side="left", padx=5)
 
 frame_tabla = tk.Frame(ventana)
 frame_tabla.pack(expand=True, fill="both")
