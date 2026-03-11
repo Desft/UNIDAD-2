@@ -60,7 +60,7 @@ def ventana2():
     nueva.geometry("1200x600")
     tk.Label(nueva, text="Bienvenido a la ventana 2").pack(pady=20)
 
-
+#VENTANAA TKINTER
 ventana = tk.Tk()
 ventana.geometry("1200x600")
 ventana.title("Tabla de Datos")
@@ -69,7 +69,6 @@ frame_botones = tk.Frame(ventana)
 frame_botones.pack(pady=5)
 tk.Button(frame_botones, text="Botón 1", width=12).pack(side="left", padx=5)
 tk.Button( frame_botones, text="Ir a ventana 2", command=ventana2).pack(side="left", padx=5)
-
 
 frame_tabla = tk.Frame(ventana)
 frame_tabla.pack(expand=True, fill="both")
